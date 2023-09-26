@@ -1,7 +1,7 @@
 package main
 
 import (
-	"context"	
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -9,20 +9,20 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
-	"github.com/go-chi/cors"	
+	"github.com/go-chi/cors"
+	// "github.com/go-oauth2/oauth2/v4"
 	"github.com/go-oauth2/oauth2/v4/errors"
 	"github.com/go-oauth2/oauth2/v4/generates"
 	"github.com/go-oauth2/oauth2/v4/manage"
 	"github.com/go-oauth2/oauth2/v4/server"
-	"github.com/golang-jwt/jwt"	
+	"github.com/golang-jwt/jwt"
+	// "github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 	pg "github.com/vgarvardt/go-oauth2-pg/v4"
 	"github.com/vgarvardt/go-pg-adapter/pgx4adapter"
 )
-
-
 
 func startupEnv() (string, string) {
 	godotenv.Load()
@@ -68,6 +68,14 @@ func mountRouter(oauthSrv *server.Server) *chi.Mux {
 		oauthSrv.HandleTokenRequest(w, r)
 	})
 
+	oAuthRouter.Post("/test", func(w http.ResponseWriter, r *http.Request) {
+		cli, err := oauthSrv.Manager.GetClient(r.Context(), r.URL.Query().Get("client_id"))
+		if err != nil {
+			respondWithJson(w, 400, cli)
+		}
+		respondWithJson(w, 200, cli)
+	})
+
 	router.Mount("/v1", v1Router)
 	router.Mount("/oauth", oAuthRouter)
 	return router
@@ -82,8 +90,19 @@ func startupOauth(dbUrl string) *server.Server {
 	tokenStore, _ := pg.NewTokenStore(adapter, pg.WithTokenStoreGCInterval(time.Minute))
 	defer tokenStore.Close()
 
-	clientStore, _ := pg.NewClientStore(adapter)	
+	clientStore, _ := pg.NewClientStore(adapter)
+
+	//TODO: Remove when creating clients becomes programatic
+	// var client oauth2.ClientInfo = Client{
+	// 	ID:     "9ec6e659-2ce2-414b-9060-997441d30c94",
+	// 	Secret: uuid.New().String(),
+	// 	Domain: "localhost",
+	// 	Public: false,
+	// 	UserID: "9ec6e659-2ce2-414b-9060-997441d30c94",
+	// }
+	// clientStore.Create(client)
 	manager.MapAccessGenerate(generates.NewJWTAccessGenerate("", []byte("00000000"), jwt.SigningMethodHS512))
+
 	manager.MapTokenStorage(tokenStore)
 	manager.MapClientStorage(clientStore)
 	manager.SetAuthorizeCodeTokenCfg(manage.DefaultAuthorizeCodeTokenCfg)
@@ -106,7 +125,7 @@ func startupOauth(dbUrl string) *server.Server {
 }
 
 func main() {
-	portString, dbUrl := startupEnv()	
+	portString, dbUrl := startupEnv()
 	oauthSrv := startupOauth(dbUrl)
 	router := mountRouter(oauthSrv)
 
